@@ -23,7 +23,7 @@ const AdminPanel: React.FC = () => {
   const { toast } = useToast();
   
   const [newClinic, setNewClinic] = useState({ name: '', nameAr: '', doctorName: '' });
-  const [newQuestion, setNewQuestion] = useState({ question: '', questionAr: '', type: 'text' as const, required: false, options: '' });
+  const [newQuestion, setNewQuestion] = useState({ question: '', questionAr: '', type: 'text' as ResearchQuestion['type'], required: false, options: '' });
 
   if (currentUser?.role !== 'admin') {
     return (
@@ -66,7 +66,7 @@ const AdminPanel: React.FC = () => {
   const handleRoleChange = (userId: string, currentRole: string) => {
     if (userId === currentUser.id) return;
     const newRole = currentRole === 'admin' ? 'student' : 'admin';
-    updateUser(userId, { role: newRole as any });
+    updateUser(userId, { role: newRole as "student" | "admin" });
     toast({ title: 'Updated', description: `User role changed to ${newRole}` });
   };
 
@@ -261,7 +261,7 @@ const AdminPanel: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Type</Label>
-                    <Select value={newQuestion.type} onValueChange={(v: any) => setNewQuestion(f => ({ ...f, type: v }))}>
+                    <Select value={newQuestion.type} onValueChange={(v: "text" | "textarea" | "number" | "boolean" | "select" | "multiselect") => setNewQuestion(f => ({ ...f, type: v }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="text">Short Text</SelectItem>

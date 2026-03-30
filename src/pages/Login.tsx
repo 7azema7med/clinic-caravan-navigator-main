@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +23,7 @@ const Login: React.FC = () => {
       toast({ title: 'Welcome!', description: 'Login successful' });
       // Check if user has assignment set
       const savedUsers = JSON.parse(localStorage.getItem('clinic_users') || '[]');
-      const user = savedUsers.find((u: any) =>
+      const user = savedUsers.find((u: User) =>
         (u.username === identifier || u.email === identifier || u.studentCode === identifier) && u.password === password
       );
       if (user && !user.assignment && user.role !== 'admin') {

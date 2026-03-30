@@ -20,7 +20,7 @@ const Research: React.FC = () => {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [responses, setResponses] = useState<Record<string, any>>({});
+  const [responses, setResponses] = useState<Record<string, unknown>>({});
 
   const questions = (settings.researchQuestions || []).sort((a, b) => a.order - b.order);
   const referredPatients = patients.filter(p => p.referToResearch);
@@ -155,13 +155,13 @@ const Research: React.FC = () => {
                     </Label>
 
                     {q.type === 'text' && (
-                      <Input value={responses[q.id] || ''} onChange={e => setResponses(r => ({ ...r, [q.id]: e.target.value }))} className="h-10" />
+                      <Input value={String(responses[q.id] ?? '')} onChange={e => setResponses(r => ({ ...r, [q.id]: e.target.value }))} className="h-10" />
                     )}
                     {q.type === 'textarea' && (
-                      <Textarea value={responses[q.id] || ''} onChange={e => setResponses(r => ({ ...r, [q.id]: e.target.value }))} />
+                      <Textarea value={String(responses[q.id] ?? '')} onChange={e => setResponses(r => ({ ...r, [q.id]: e.target.value }))} />
                     )}
                     {q.type === 'number' && (
-                      <Input type="number" value={responses[q.id] || ''} onChange={e => setResponses(r => ({ ...r, [q.id]: e.target.value }))} className="h-10 max-w-32" />
+                      <Input type="number" value={String(responses[q.id] ?? '')} onChange={e => setResponses(r => ({ ...r, [q.id]: e.target.value }))} className="h-10 max-w-32" />
                     )}
                     {q.type === 'boolean' && (
                       <div className="flex items-center gap-2">
@@ -170,7 +170,7 @@ const Research: React.FC = () => {
                       </div>
                     )}
                     {q.type === 'select' && q.options && (
-                      <Select value={responses[q.id] || ''} onValueChange={v => setResponses(r => ({ ...r, [q.id]: v }))}>
+                      <Select value={String(responses[q.id] ?? '')} onValueChange={v => setResponses(r => ({ ...r, [q.id]: v }))}>
                         <SelectTrigger className="h-10"><SelectValue placeholder="Select..." /></SelectTrigger>
                         <SelectContent>
                           {q.options.map(opt => (
@@ -182,12 +182,13 @@ const Research: React.FC = () => {
                     {q.type === 'multiselect' && q.options && (
                       <div className="flex flex-wrap gap-2">
                         {q.options.map(opt => {
-                          const selected = (responses[q.id] || []).includes(opt);
+                          const vals = Array.isArray(responses[q.id]) ? (responses[q.id] as string[]) : [];
+                          const selected = vals.includes(opt);
                           return (
                             <button key={opt} type="button"
                               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${selected ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted border-border hover:bg-primary/10'}`}
                               onClick={() => {
-                                const current = responses[q.id] || [];
+                                const current = Array.isArray(responses[q.id]) ? (responses[q.id] as string[]) : [];
                                 const next = selected ? current.filter((v: string) => v !== opt) : [...current, opt];
                                 setResponses(r => ({ ...r, [q.id]: next }));
                               }}>

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Patient, Clinic, SystemSettings, DEFAULT_VITAL_RANGES, DEFAULT_CLINICS, SwitchRequest, ResearchQuestion, CustomVitalField } from '@/lib/types';
 
@@ -25,7 +26,7 @@ interface DataContextType {
   updateResearchQuestion: (id: string, updates: Partial<ResearchQuestion>) => void;
   deleteResearchQuestion: (id: string) => void;
   reorderResearchQuestions: (ids: string[]) => void;
-  saveResearchResponse: (patientId: string, responses: Record<string, any>, by: string) => void;
+  saveResearchResponse: (patientId: string, responses: Record<string, unknown>, by: string) => void;
   // Custom vitals
   addCustomVitalField: (field: Omit<CustomVitalField, 'id'>) => void;
   updateCustomVitalField: (id: string, updates: Partial<CustomVitalField>) => void;
@@ -194,7 +195,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
-  const saveResearchResponse = useCallback((patientId: string, responses: Record<string, any>, by: string) => {
+  const saveResearchResponse = useCallback((patientId: string, responses: Record<string, unknown>, by: string) => {
     setPatients(prev => prev.map(p =>
       p.id === patientId ? {
         ...p,

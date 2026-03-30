@@ -132,7 +132,7 @@ export function generateClinicReportPDF(clinicName: string, patients: Patient[])
   printHTML(content, `ClinicReport_${clinicName.replace(/\s+/g, '_')}.pdf`);
 }
 
-export function generateGlobalReportPDF(patients: Patient[], stats: any[]) {
+export function generateGlobalReportPDF(patients: Patient[], stats: Array<{ clinicName: string; total: number; examined: number; waiting: number; absent: number; }>) {
   const total = stats.reduce((acc, curr) => acc + curr.total, 0);
   const examined = stats.reduce((acc, curr) => acc + curr.examined, 0);
   const waiting = stats.reduce((acc, curr) => acc + curr.waiting, 0);

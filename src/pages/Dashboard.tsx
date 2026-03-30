@@ -7,12 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { StudentAssignment, ASSIGNMENT_LABELS } from '@/lib/types';
+import { StudentAssignment, ASSIGNMENT_LABELS, User } from '@/lib/types';
 import { ClipboardList, HeartPulse, FileText, ScrollText, LogOut, Timer, Shield, Users, Activity, Bell, ArrowRightLeft, UserCog, AlertTriangle, ArrowRight, Moon, Sun, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ThemeToggle } from '@/components/ThemeProvider';
 
-const SECTION_CONFIG: Record<StudentAssignment, { icon: any; color: string; route: string }> = {
+const SECTION_CONFIG: Record<StudentAssignment, { icon: React.ElementType; color: string; route: string }> = {
   registration: { icon: ClipboardList, color: 'from-blue-600 to-cyan-500', route: '/registration' },
   vitals: { icon: HeartPulse, color: 'from-rose-500 to-pink-500', route: '/vitals' },
   clinic: { icon: FileText, color: 'from-emerald-500 to-green-500', route: '/clinic-report' },
@@ -68,7 +68,7 @@ const Dashboard: React.FC = () => {
     navigate(SECTION_CONFIG[assignment].route);
   };
 
-  const handleSendSwitch = (targetUser: any) => {
+  const handleSendSwitch = (targetUser: User) => {
     addSwitchRequest({
       requesterId: currentUser.id,
       requesterName: currentUser.fullName,

@@ -87,7 +87,7 @@ export interface Patient {
 
   // Research
   researchCompleted?: boolean;
-  researchResponses?: Record<string, any>;
+  researchResponses?: Record<string, unknown>;
   researchBy?: string;
   researchAt?: string;
 }

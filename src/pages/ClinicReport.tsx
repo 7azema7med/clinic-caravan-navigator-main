@@ -12,12 +12,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Save, FileText, CheckCircle2, Download, UserX, AlertTriangle, Users, Trash2, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generatePrescriptionPDF, generateClinicReportPDF } from '@/lib/pdf';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus } from 'lucide-react';
 import PageLayout from '@/components/PageLayout';
 
 const ClinicReport: React.FC = () => {
   const { currentUser } = useAuth();
-  const { getPatientsByClinic, updatePatient, deletePatient, clinics } = useData();
+  const { getPatientsByClinic, updatePatient, deletePatient, addPatient, getNextTicketNumber, clinics } = useData();
   const { toast } = useToast();
+  const [newPatientDialog, setNewPatientDialog] = useState(false);
+  const [newPatientForm, setNewPatientForm] = useState({ fullNameAr: '', age: '', mainComplaint: '' });
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [searchTicket, setSearchTicket] = useState('');
   const [form, setForm] = useState({ diagnosis: '', treatment: '', investigation: '', referral: false, referralNote: '', note: '' });
@@ -63,7 +68,7 @@ const ClinicReport: React.FC = () => {
       examStudentSignature: currentUser?.fullName,
       examinedAt: new Date().toLocaleString('en-EG', { timeZone: 'Africa/Cairo' }),
       examined: true,
-      status: 'examined' as any,
+      status: 'examined',
     });
     toast({ title: 'Saved', description: 'Examination completed successfully' });
     setSelectedPatientId(null);
@@ -71,13 +76,13 @@ const ClinicReport: React.FC = () => {
   };
 
   const handleMarkAbsent = (id: string) => {
-    updatePatient(id, { status: 'absent' as any });
+    updatePatient(id, { status: 'absent' });
     toast({ title: 'Marked Absent', description: 'Patient moved to absent list' });
     if (selectedPatientId === id) setSelectedPatientId(null);
   };
 
   const handleRestorePatient = (id: string) => {
-    updatePatient(id, { status: 'waiting' as any });
+    updatePatient(id, { status: 'waiting' });
     toast({ title: 'Restored', description: 'Patient moved back to waiting list' });
   };
 
@@ -93,6 +98,30 @@ const ClinicReport: React.FC = () => {
     if (clinic) {
       generateClinicReportPDF(clinic.nameAr + ' - ' + clinic.name, allPatients);
     }
+  };
+
+  const handleQuickAddPatient = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clinic || !newPatientForm.fullNameAr || !newPatientForm.age || !newPatientForm.mainComplaint) return;
+    
+    addPatient({
+      fullNameAr: newPatientForm.fullNameAr,
+      age: parseInt(newPatientForm.age),
+      mainComplaint: newPatientForm.mainComplaint,
+      clinicId: clinic.id,
+      clinicName: `${clinic.nameAr} - ${clinic.name}`,
+      referToVitals: false,
+      referToResearch: false,
+      vitalsCompleted: false,
+      examined: false,
+      referral: false,
+      registeredBy: currentUser?.fullName || '',
+      registeredAt: new Date().toLocaleString('en-EG', { timeZone: 'Africa/Cairo' }),
+    });
+    
+    toast({ title: 'Added', description: 'Patient directly added to clinic waiting list' });
+    setNewPatientDialog(false);
+    setNewPatientForm({ fullNameAr: '', age: '', mainComplaint: '' });
   };
 
   return (
@@ -138,6 +167,7 @@ const ClinicReport: React.FC = () => {
           <div className="flex gap-2">
             <Input value={searchTicket} onChange={e => setSearchTicket(e.target.value)} placeholder="Search ticket/name..." className="h-9" />
             <Button size="icon" variant="outline"><Search className="w-4 h-4" /></Button>
+            <Button size="icon" variant="default" onClick={() => setNewPatientDialog(true)} title="Add Patient directly here"><Plus className="w-4 h-4" /></Button>
           </div>
 
           <Tabs defaultValue="waiting" className="space-y-2">
@@ -323,6 +353,31 @@ const ClinicReport: React.FC = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={newPatientDialog} onOpenChange={setNewPatientDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Quick Register to Clinic</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleQuickAddPatient} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Patient Full Name (Arabic)</Label>
+              <Input required value={newPatientForm.fullNameAr} onChange={e => setNewPatientForm(p => ({ ...p, fullNameAr: e.target.value }))} dir="rtl" />
+            </div>
+            <div className="space-y-2">
+              <Label>Age</Label>
+              <Input type="number" required value={newPatientForm.age} onChange={e => setNewPatientForm(p => ({ ...p, age: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Main Complaint</Label>
+              <Input required value={newPatientForm.mainComplaint} onChange={e => setNewPatientForm(p => ({ ...p, mainComplaint: e.target.value }))} dir="rtl" />
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="w-full">Add Patient & Generate Ticket {getNextTicketNumber()}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };
