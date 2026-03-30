@@ -1,0 +1,83 @@
+﻿
+> vite_react_shadcn_ts@0.0.0 lint
+> eslint .
+
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\badge.tsx
+  29:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\button.tsx
+  47:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\command.tsx
+  24:11  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\form.tsx
+  129:10  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\navigation-menu.tsx
+  111:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\sidebar.tsx
+  636:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\sonner.tsx
+  27:19  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\textarea.tsx
+  5:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\components\ui\toggle.tsx
+  37:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\contexts\AuthContext.tsx
+  19:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\contexts\DataContext.tsx
+   28:71  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+   37:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  197:90  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\lib\pdf.ts
+  135:69  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\lib\types.ts
+  90:38  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\pages\AdminPanel.tsx
+   69:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  264:73  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\pages\ClinicReport.tsx
+  66:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  74:45  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  80:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\pages\Dashboard.tsx
+  15:57  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  71:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\pages\Login.tsx
+  25:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\pages\PatientRegistration.tsx
+   25:52   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   28:56   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  106:39   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  339:95   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  344:104  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  348:98   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  353:98   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  359:41   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  371:98   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  375:110  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  379:112  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\src\pages\Research.tsx
+  23:61  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Medical System\clinic-caravan-navigator-main\clinic-caravan-navigator-main\tailwind.config.ts
+  106:13  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+Γ£û 36 problems (27 errors, 9 warnings)
+
