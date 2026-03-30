@@ -14,17 +14,22 @@ const Register: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.password !== form.confirmPassword) {
-      toast({ title: 'Error', description: 'Passwords do not match', variant: 'destructive' });
+      toast({ title: 'Passwords do not match', variant: 'destructive' });
       return;
     }
-    if (register({ username: form.username, email: form.email, studentCode: form.studentCode || undefined, password: form.password, fullName: form.fullName })) {
-      toast({ title: 'Success', description: 'Account created! Please login to select your position.' });
+    const success = await register({
+      username: form.username,
+      email: form.email,
+      studentCode: form.studentCode || undefined,
+      password: form.password,
+      fullName: form.fullName
+    });
+    if (success) {
+      toast({ title: 'Account created!', description: 'Please login to continue.' });
       navigate('/');
-    } else {
-      toast({ title: 'Error', description: 'Username or email already exists', variant: 'destructive' });
     }
   };
 
@@ -64,7 +69,7 @@ const Register: React.FC = () => {
                   <Label htmlFor="studentCode">Student Code (optional)</Label>
                   <Input id="studentCode" value={form.studentCode} onChange={e => update('studentCode', e.target.value)} className="h-10" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="password">Password *</Label>
                     <Input id="password" type="password" value={form.password} onChange={e => update('password', e.target.value)} required className="h-10" />

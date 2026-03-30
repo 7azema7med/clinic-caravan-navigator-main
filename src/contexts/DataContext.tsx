@@ -1,36 +1,41 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Patient, Clinic, SystemSettings, DEFAULT_VITAL_RANGES, DEFAULT_CLINICS, SwitchRequest, ResearchQuestion, CustomVitalField } from '@/lib/types';
+import { Patient, Clinic, SystemSettings, DEFAULT_VITAL_RANGES, SwitchRequest, ResearchQuestion, CustomVitalField, PatientStatus, VitalThreshold } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 interface DataContextType {
   patients: Patient[];
   clinics: Clinic[];
   settings: SystemSettings;
   switchRequests: SwitchRequest[];
-  addPatient: (patient: Omit<Patient, 'id' | 'ticketNumber' | 'status'>) => Patient;
-  updatePatient: (id: string, updates: Partial<Patient>) => void;
-  deletePatient: (id: string) => void;
+  addPatient: (patient: Omit<Patient, 'id' | 'ticketNumber' | 'status'>) => Promise<Patient | null>;
+  updatePatient: (id: string, updates: Partial<Patient>) => Promise<void>;
+  deletePatient: (id: string) => Promise<void>;
   getPatientByTicket: (ticket: string) => Patient | undefined;
   getPatientsByClinic: (clinicId: string) => Patient[];
-  addClinic: (clinic: Omit<Clinic, 'id'>) => void;
-  updateClinic: (id: string, updates: Partial<Clinic>) => void;
-  deleteClinic: (id: string) => void;
-  updateSettings: (updates: Partial<SystemSettings>) => void;
+  addClinic: (clinic: Omit<Clinic, 'id'>) => Promise<void>;
+  updateClinic: (id: string, updates: Partial<Clinic>) => Promise<void>;
+  deleteClinic: (id: string) => Promise<void>;
+  updateSettings: (updates: Partial<SystemSettings>) => Promise<void>;
+  updateVitalThreshold: (id: string, updates: Partial<VitalThreshold>) => Promise<void>;
   getNextTicketNumber: () => string;
   getClinicStats: () => { clinicId: string; clinicName: string; waiting: number; examined: number; absent: number; total: number }[];
-  addSwitchRequest: (req: Omit<SwitchRequest, 'id' | 'createdAt' | 'status'>) => void;
-  updateSwitchRequest: (id: string, status: 'approved' | 'rejected') => void;
+  addSwitchRequest: (req: Omit<SwitchRequest, 'id' | 'createdAt' | 'status'>) => Promise<void>;
+  updateSwitchRequest: (id: string, status: 'approved' | 'rejected') => Promise<void>;
   getPendingSwitchRequests: (userId: string) => SwitchRequest[];
   // Research
-  addResearchQuestion: (q: Omit<ResearchQuestion, 'id' | 'order'>) => void;
-  updateResearchQuestion: (id: string, updates: Partial<ResearchQuestion>) => void;
-  deleteResearchQuestion: (id: string) => void;
-  reorderResearchQuestions: (ids: string[]) => void;
-  saveResearchResponse: (patientId: string, responses: Record<string, unknown>, by: string) => void;
+  addResearchQuestion: (q: Omit<ResearchQuestion, 'id' | 'order'>) => Promise<void>;
+  updateResearchQuestion: (id: string, updates: Partial<ResearchQuestion>) => Promise<void>;
+  deleteResearchQuestion: (id: string) => Promise<void>;
+  reorderResearchQuestions: (ids: string[]) => Promise<void>;
+  saveResearchResponse: (patientId: string, responses: Record<string, unknown>, by: string) => Promise<void>;
   // Custom vitals
-  addCustomVitalField: (field: Omit<CustomVitalField, 'id'>) => void;
-  updateCustomVitalField: (id: string, updates: Partial<CustomVitalField>) => void;
-  deleteCustomVitalField: (id: string) => void;
+  addCustomVitalField: (field: Omit<CustomVitalField, 'id'>) => Promise<void>;
+  updateCustomVitalField: (id: string, updates: Partial<CustomVitalField>) => Promise<void>;
+  deleteCustomVitalField: (id: string) => Promise<void>;
+  vitalThresholds: VitalThreshold[];
+  isLoading: boolean;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -45,59 +50,260 @@ const DEFAULT_SETTINGS: SystemSettings = {
   registrationOpen: true,
   rotationTimeMinutes: 30,
   vitalRanges: DEFAULT_VITAL_RANGES,
+  vitalThresholds: [],
   researchQuestions: [],
   registrationFields: [],
   customVitalFields: [],
 };
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [patients, setPatients] = useState<Patient[]>(() => {
-    const saved = localStorage.getItem('clinic_patients');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [clinics, setClinics] = useState<Clinic[]>([]);
+  const [vitalThresholds, setVitalThresholds] = useState<VitalThreshold[]>([]);
+  const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
+  const [switchRequests, setSwitchRequests] = useState<SwitchRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [clinics, setClinics] = useState<Clinic[]>(() => {
-    const saved = localStorage.getItem('clinic_clinics');
-    return saved ? JSON.parse(saved) : DEFAULT_CLINICS;
-  });
+  // ── Data Mapping Helpers ──
+  const mapDataToPatient = useCallback((p: any, v: any, e: any, r: any[]): Patient => {
+    return {
+      id: p.id,
+      ticketNumber: String(p.ticket_number).padStart(4, '0'),
+      fullNameAr: p.full_name_ar,
+      age: p.age,
+      phone: p.phone,
+      mainComplaint: p.main_complaint,
+      clinicId: p.clinic_id,
+      clinicName: p.clinics ? (p.clinics.is_active ? p.clinics.name_ar : `[Unavailable] ${p.clinics.name_ar}`) : 'Unknown',
+      note: p.note,
+      referToVitals: p.referred_to_vital_signs,
+      referToResearch: p.referred_to_research,
+      registeredBy: p.profiles?.username || 'Unknown',
+      registeredAt: p.registration_time,
+      status: p.status as PatientStatus,
+      
+      // Vitals
+      vitalsCompleted: !!v,
+      bloodPressureSystolic: v?.bp_systolic,
+      bloodPressureDiastolic: v?.bp_diastolic,
+      bloodSugar: v?.blood_sugar,
+      pulse: v?.pulse,
+      temperature: v?.temperature,
+      weight: v?.weight,
+      height: v?.height,
+      oxygenSaturation: v?.oxygen_saturation,
+      pastHistory: v?.past_history,
+      vitalsNote: v?.note,
+      vitalsBy: v?.student_id,
+      vitalsAt: v?.recorded_at,
+      customVitals: v?.custom_vitals || {},
 
-  const [settings, setSettings] = useState<SystemSettings>(() => {
-    const saved = localStorage.getItem('clinic_settings');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Ensure new fields exist with defaults
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      // Examination
+      examined: !!e,
+      diagnosis: e?.diagnosis,
+      treatment: e?.treatment,
+      investigation: e?.investigation,
+      referral: e?.referral || false,
+      referralNote: e?.referral_to,
+      examNote: e?.doctor_note,
+      doctorSignature: e?.doctor_signature,
+      examStudentSignature: e?.student_signature,
+      examinedAt: e?.examined_at,
+
+      // Research
+      researchCompleted: r && r.length > 0,
+      researchResponses: r?.reduce((acc, curr) => ({ ...acc, [curr.question_id]: curr.answer }), {}),
+      researchBy: r?.[0]?.student_id,
+      researchAt: r?.[0]?.answered_at,
+    };
+  }, []);
+
+  // ── Data Fetchers ──
+  const fetchAllData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Fetch Clinics
+      const { data: clinicsData } = await supabase.from('clinics').select('*').order('display_order');
+      if (clinicsData) {
+        setClinics(clinicsData.map(c => ({
+          id: c.id,
+          name: c.name,
+          nameAr: c.name_ar,
+          doctorName: c.doctor_name || '',
+          isActive: c.is_active,
+        })));
+      }
+
+      // Fetch Patients with joined data
+      const { data: patientsData } = await supabase
+        .from('patients')
+        .select(`
+          *,
+          clinics(*),
+          profiles(username),
+          vital_signs(*),
+          examinations(*),
+          research_answers(*)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (patientsData) {
+        const mapped = patientsData.map(p => mapDataToPatient(p, p.vital_signs?.[0], p.examinations?.[0], p.research_answers));
+        setPatients(mapped);
+      }
+      
+      // Fetch Thresholds
+      const { data: thresholds } = await supabase.from('vital_signs_thresholds').select('*').order('metric', { ascending: true });
+      if (thresholds) {
+        setVitalThresholds(thresholds);
+      }
+
+      // Fetch Settings
+      const { data: settingsData } = await supabase.from('system_settings').select('*');
+      if (settingsData) {
+        const mappedSettings: Partial<SystemSettings> = {};
+        settingsData.forEach(s => {
+          if (s.key === 'registration_open') mappedSettings.registrationOpen = s.value === 'true';
+          if (s.key === 'rotation_time_minutes') mappedSettings.rotationTimeMinutes = parseInt(s.value) || 30;
+        });
+        setSettings(prev => ({ ...prev, ...mappedSettings }));
+      }
+
+      // Fetch Switch Requests
+      const { data: switchRequestsData } = await supabase.from('switch_requests').select('*').order('created_at', { ascending: false });
+      if (switchRequestsData) {
+        setSwitchRequests(switchRequestsData.map(r => ({
+          id: r.id,
+          requesterId: r.requester_id,
+          requesterName: r.requester_name || 'User',
+          requesterAssignment: r.requester_assignment,
+          requesterClinic: r.requester_clinic,
+          targetUserId: r.target_user_id,
+          targetUserName: r.target_user_name || 'User',
+          targetAssignment: r.target_assignment,
+          targetClinic: r.target_clinic,
+          status: r.status as 'pending' | 'approved' | 'rejected',
+          createdAt: r.created_at,
+        })));
+      }
+
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      toast.error('Failed to load real-time data');
+    } finally {
+      setIsLoading(false);
     }
-    return DEFAULT_SETTINGS;
-  });
+  }, [mapDataToPatient]);
 
-  const [switchRequests, setSwitchRequests] = useState<SwitchRequest[]>(() => {
-    const saved = localStorage.getItem('clinic_switch_requests');
-    return saved ? JSON.parse(saved) : [];
-  });
+  useEffect(() => {
+    fetchAllData();
 
-  useEffect(() => { localStorage.setItem('clinic_patients', JSON.stringify(patients)); }, [patients]);
-  useEffect(() => { localStorage.setItem('clinic_clinics', JSON.stringify(clinics)); }, [clinics]);
-  useEffect(() => { localStorage.setItem('clinic_settings', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('clinic_switch_requests', JSON.stringify(switchRequests)); }, [switchRequests]);
+    // Subscribe to Real-time Changes
+    const patientsChannel = supabase.channel('table-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vital_signs' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'examinations' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'switch_requests' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clinics' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vital_signs_thresholds' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_settings' }, () => fetchAllData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(patientsChannel);
+    };
+  }, [fetchAllData]);
 
   const getNextTicketNumber = useCallback((): string => {
     const nextNum = patients.length + 1;
     return String(nextNum).padStart(4, '0');
   }, [patients]);
 
-  const addPatient = useCallback((patientData: Omit<Patient, 'id' | 'ticketNumber' | 'status'>): Patient => {
-    const ticket = getNextTicketNumber();
-    const patient: Patient = { ...patientData, id: crypto.randomUUID(), ticketNumber: ticket, status: 'waiting' };
-    setPatients(prev => [...prev, patient]);
+  const addPatient = useCallback(async (patientData: Omit<Patient, 'id' | 'ticketNumber' | 'status'>): Promise<Patient | null> => {
+    const { data, error } = await supabase
+      .from('patients')
+      .insert({
+        full_name_ar: patientData.fullNameAr,
+        age: patientData.age,
+        phone: patientData.phone,
+        main_complaint: patientData.mainComplaint,
+        clinic_id: patientData.clinicId,
+        note: patientData.note,
+        referred_to_vital_signs: patientData.referToVitals,
+        referred_to_research: patientData.referToResearch,
+        status: 'waiting',
+      })
+      .select(`*, clinics(name_ar), profiles(username)`)
+      .single();
+
+    if (error) {
+      toast.error('Failed to add patient: ' + error.message);
+      return null;
+    }
+
+    const patient = mapDataToPatient(data, null, null, []);
+    setPatients(prev => [patient, ...prev]);
     return patient;
-  }, [getNextTicketNumber]);
+  }, [mapDataToPatient]);
 
-  const updatePatient = useCallback((id: string, updates: Partial<Patient>) => {
-    setPatients(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-  }, []);
+  const updatePatient = useCallback(async (id: string, updates: Partial<Patient>) => {
+    const dbUpdates: any = {};
+    if (updates.fullNameAr) dbUpdates.full_name_ar = updates.fullNameAr;
+    if (updates.status) dbUpdates.status = updates.status;
+    if (updates.note !== undefined) dbUpdates.note = updates.note;
+    if (updates.clinicId) dbUpdates.clinic_id = updates.clinicId;
 
-  const deletePatient = useCallback((id: string) => {
+    const { error } = await supabase.from('patients').update(dbUpdates).eq('id', id);
+    if (error) {
+      toast.error('Failed to update patient');
+      return;
+    }
+    
+    // Check if we need to update vitals or examinations as well
+    if (updates.vitalsCompleted || updates.bloodPressureSystolic !== undefined) {
+      const { error: vError } = await supabase.from('vital_signs').upsert({
+        patient_id: id,
+        bp_systolic: updates.bloodPressureSystolic,
+        bp_diastolic: updates.bloodPressureDiastolic,
+        blood_sugar: updates.bloodSugar,
+        pulse: updates.pulse,
+        temperature: updates.temperature,
+        weight: updates.weight,
+        height: updates.height,
+        oxygen_saturation: updates.oxygenSaturation,
+        past_history: updates.pastHistory,
+        note: updates.vitalsNote,
+        student_id: updates.vitalsBy,
+        recorded_at: new Date().toISOString(),
+      }, { onConflict: 'patient_id' });
+      if (vError) console.error('Vitals update error:', vError);
+    }
+
+    if (updates.examined || updates.diagnosis !== undefined) {
+      const { error: eError } = await supabase.from('examinations').upsert({
+        patient_id: id,
+        diagnosis: updates.diagnosis,
+        treatment: updates.treatment,
+        investigation: updates.investigation,
+        referral: updates.referral,
+        referral_to: updates.referralNote,
+        doctor_note: updates.examNote,
+        doctor_signature: updates.doctorSignature,
+        student_signature: updates.examStudentSignature,
+        examined_at: new Date().toISOString(),
+      }, { onConflict: 'patient_id' });
+      if (eError) console.error('Examination update error:', eError);
+    }
+
+    fetchAllData();
+  }, [fetchAllData]);
+
+  const deletePatient = useCallback(async (id: string) => {
+    const { error } = await supabase.from('patients').delete().eq('id', id);
+    if (error) {
+      toast.error('Failed to delete patient');
+      return;
+    }
     setPatients(prev => prev.filter(p => p.id !== id));
   }, []);
 
@@ -107,27 +313,62 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getPatientsByClinic = useCallback((clinicId: string) => {
     return patients.filter(p => p.clinicId === clinicId).sort((a, b) => {
-      const ticketA = parseInt(a.ticketNumber);
-      const ticketB = parseInt(b.ticketNumber);
-      return ticketA - ticketB;
+      return parseInt(a.ticketNumber) - parseInt(b.ticketNumber);
     });
   }, [patients]);
 
-  const addClinic = useCallback((clinicData: Omit<Clinic, 'id'>) => {
-    setClinics(prev => [...prev, { ...clinicData, id: crypto.randomUUID() }]);
-  }, []);
+  const addClinic = useCallback(async (clinicData: Omit<Clinic, 'id'>) => {
+    const { error } = await supabase.from('clinics').insert({
+      name: clinicData.name,
+      name_ar: clinicData.nameAr,
+      is_active: clinicData.isActive,
+    });
+    if (error) toast.error('Failed to add clinic');
+    fetchAllData();
+  }, [fetchAllData]);
 
-  const updateClinic = useCallback((id: string, updates: Partial<Clinic>) => {
-    setClinics(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-  }, []);
+  const updateClinic = useCallback(async (id: string, updates: Partial<Clinic>) => {
+    const { error } = await supabase.from('clinics').update({
+      name: updates.name,
+      name_ar: updates.nameAr,
+      is_active: updates.isActive,
+    }).eq('id', id);
+    if (error) toast.error('Failed to update clinic');
+    fetchAllData();
+  }, [fetchAllData]);
 
-  const deleteClinic = useCallback((id: string) => {
-    setClinics(prev => prev.filter(c => c.id !== id));
-  }, []);
+  const deleteClinic = useCallback(async (id: string) => {
+    const { error } = await supabase.from('clinics').delete().eq('id', id);
+    if (error) toast.error('Failed to delete clinic');
+    fetchAllData();
+  }, [fetchAllData]);
 
-  const updateSettings = useCallback((updates: Partial<SystemSettings>) => {
+  const updateSettings = useCallback(async (updates: Partial<SystemSettings>) => {
+    if (updates.registrationOpen !== undefined) {
+      await supabase.from('system_settings').update({ value: updates.registrationOpen.toString() }).eq('key', 'registration_open');
+    }
+    if (updates.rotationTimeMinutes !== undefined) {
+      await supabase.from('system_settings').update({ value: updates.rotationTimeMinutes.toString() }).eq('key', 'rotation_time_minutes');
+    }
     setSettings(prev => ({ ...prev, ...updates }));
+    toast.success('Settings synchronized');
   }, []);
+
+  const updateVitalThreshold = useCallback(async (id: string, updates: Partial<VitalThreshold>) => {
+    const { error } = await supabase.from('vital_signs_thresholds').update({
+      min_value: updates.min_value,
+      max_value: updates.max_value,
+      label_ar: updates.label_ar,
+      color: updates.color
+    }).eq('id', id);
+    
+    if (error) {
+      toast.error('Failed to update threshold');
+      return;
+    }
+    toast.success('Threshold updated');
+    fetchAllData();
+  }, [fetchAllData]);
 
   const getClinicStats = useCallback(() => {
     return clinics.filter(c => c.isActive).map(clinic => {
@@ -135,98 +376,103 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {
         clinicId: clinic.id,
         clinicName: `${clinic.nameAr} - ${clinic.name}`,
-        waiting: clinicPatients.filter(p => !p.examined && p.status !== 'absent').length,
-        examined: clinicPatients.filter(p => p.examined).length,
+        waiting: clinicPatients.filter(p => p.status === 'waiting' || (p.status as string) === 'in_vital_signs').length,
+        examined: clinicPatients.filter(p => p.examined || p.status === 'examined' || (p.status as string) === 'completed').length,
         absent: clinicPatients.filter(p => p.status === 'absent').length,
         total: clinicPatients.length,
       };
     });
   }, [clinics, patients]);
 
-  const addSwitchRequest = useCallback((reqData: Omit<SwitchRequest, 'id' | 'createdAt' | 'status'>) => {
-    const req: SwitchRequest = {
-      ...reqData,
-      id: crypto.randomUUID(),
+  const addSwitchRequest = useCallback(async (reqData: Omit<SwitchRequest, 'id' | 'createdAt' | 'status'>) => {
+    const { error } = await supabase.from('switch_requests').insert({
+      requester_id: reqData.requesterId,
+      requester_name: reqData.requesterName,
+      requester_assignment: reqData.requesterAssignment,
+      requester_clinic: reqData.requesterClinic,
+      target_user_id: reqData.targetUserId,
+      target_user_name: reqData.targetUserName,
+      target_assignment: reqData.targetAssignment,
+      target_clinic: reqData.targetClinic,
       status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-    setSwitchRequests(prev => [...prev, req]);
-  }, []);
+    });
+    if (error) toast.error('Failed to send switch request');
+    fetchAllData();
+  }, [fetchAllData]);
 
-  const updateSwitchRequest = useCallback((id: string, status: 'approved' | 'rejected') => {
-    setSwitchRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-  }, []);
+  const updateSwitchRequest = useCallback(async (id: string, status: 'approved' | 'rejected') => {
+    const { error } = await supabase.from('switch_requests').update({ status }).eq('id', id);
+    if (error) toast.error('Failed to update request');
+    fetchAllData();
+  }, [fetchAllData]);
 
   const getPendingSwitchRequests = useCallback((userId: string) => {
     return switchRequests.filter(r => r.targetUserId === userId && r.status === 'pending');
   }, [switchRequests]);
 
   // ── Research Questions ──
-  const addResearchQuestion = useCallback((qData: Omit<ResearchQuestion, 'id' | 'order'>) => {
-    setSettings(prev => {
-      const questions = [...(prev.researchQuestions || [])];
-      const q: ResearchQuestion = { ...qData, id: crypto.randomUUID(), order: questions.length };
-      return { ...prev, researchQuestions: [...questions, q] };
+  const addResearchQuestion = useCallback(async (qData: Omit<ResearchQuestion, 'id' | 'order'>) => {
+    const { error } = await supabase.from('registration_questions').insert({
+      question_text: qData.question,
+      question_text_ar: qData.questionAr,
+      question_type: qData.type,
+      options: qData.options,
+      is_required: qData.required,
+      section: 'research'
     });
+    if (error) toast.error('Failed to add question');
+    fetchAllData();
+  }, [fetchAllData]);
+
+  const updateResearchQuestion = useCallback(async (id: string, updates: Partial<ResearchQuestion>) => {
+    const { error } = await supabase.from('registration_questions').update({
+      question_text: updates.question,
+      question_text_ar: updates.questionAr,
+      question_type: updates.type,
+      options: updates.options,
+      is_required: updates.required,
+    }).eq('id', id);
+    if (error) toast.error('Failed to update question');
+    fetchAllData();
+  }, [fetchAllData]);
+
+  const deleteResearchQuestion = useCallback(async (id: string) => {
+    const { error } = await supabase.from('registration_questions').delete().eq('id', id);
+    if (error) toast.error('Failed to delete question');
+    fetchAllData();
+  }, [fetchAllData]);
+
+  const reorderResearchQuestions = useCallback(async (ids: string[]) => {
+    // Implement reordering if needed
+    console.log('Reorder research questions:', ids);
   }, []);
 
-  const updateResearchQuestion = useCallback((id: string, updates: Partial<ResearchQuestion>) => {
-    setSettings(prev => ({
-      ...prev,
-      researchQuestions: (prev.researchQuestions || []).map(q => q.id === id ? { ...q, ...updates } : q),
+  const saveResearchResponse = useCallback(async (patientId: string, responses: Record<string, unknown>, _by: string) => {
+    const answers = Object.entries(responses).map(([qId, val]) => ({
+      patient_id: patientId,
+      question_id: qId,
+      answer: String(val),
     }));
-  }, []);
 
-  const deleteResearchQuestion = useCallback((id: string) => {
-    setSettings(prev => ({
-      ...prev,
-      researchQuestions: (prev.researchQuestions || []).filter(q => q.id !== id).map((q, i) => ({ ...q, order: i })),
-    }));
-  }, []);
-
-  const reorderResearchQuestions = useCallback((ids: string[]) => {
-    setSettings(prev => {
-      const questions = prev.researchQuestions || [];
-      const reordered = ids.map((id, i) => {
-        const q = questions.find(q => q.id === id);
-        return q ? { ...q, order: i } : null;
-      }).filter(Boolean) as ResearchQuestion[];
-      return { ...prev, researchQuestions: reordered };
-    });
-  }, []);
-
-  const saveResearchResponse = useCallback((patientId: string, responses: Record<string, unknown>, by: string) => {
-    setPatients(prev => prev.map(p =>
-      p.id === patientId ? {
-        ...p,
-        researchCompleted: true,
-        researchResponses: responses,
-        researchBy: by,
-        researchAt: new Date().toLocaleString('en-EG', { timeZone: 'Africa/Cairo' }),
-      } : p
-    ));
-  }, []);
+    const { error } = await supabase.from('research_answers').insert(answers);
+    if (error) {
+      toast.error('Failed to save research responses');
+      return;
+    }
+    fetchAllData();
+  }, [fetchAllData]);
 
   // ── Custom Vital Fields ──
-  const addCustomVitalField = useCallback((fieldData: Omit<CustomVitalField, 'id'>) => {
-    setSettings(prev => ({
-      ...prev,
-      customVitalFields: [...(prev.customVitalFields || []), { ...fieldData, id: crypto.randomUUID() }],
-    }));
+  const addCustomVitalField = useCallback(async (_fieldData: Omit<CustomVitalField, 'id'>) => {
+    toast.info('Custom vitals sync not yet implemented');
   }, []);
 
-  const updateCustomVitalField = useCallback((id: string, updates: Partial<CustomVitalField>) => {
-    setSettings(prev => ({
-      ...prev,
-      customVitalFields: (prev.customVitalFields || []).map(f => f.id === id ? { ...f, ...updates } : f),
-    }));
+  const updateCustomVitalField = useCallback(async (_id: string, _updates: Partial<CustomVitalField>) => {
+    toast.info('Custom vitals sync not yet implemented');
   }, []);
 
-  const deleteCustomVitalField = useCallback((id: string) => {
-    setSettings(prev => ({
-      ...prev,
-      customVitalFields: (prev.customVitalFields || []).filter(f => f.id !== id),
-    }));
+  const deleteCustomVitalField = useCallback(async (_id: string) => {
+    toast.info('Custom vitals sync not yet implemented');
   }, []);
 
   return (
@@ -235,11 +481,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addPatient, updatePatient, deletePatient,
       getPatientByTicket, getPatientsByClinic,
       addClinic, updateClinic, deleteClinic,
-      updateSettings, getNextTicketNumber, getClinicStats,
+      updateSettings, updateVitalThreshold, getNextTicketNumber, getClinicStats,
       addSwitchRequest, updateSwitchRequest, getPendingSwitchRequests,
       addResearchQuestion, updateResearchQuestion, deleteResearchQuestion,
       reorderResearchQuestions, saveResearchResponse,
       addCustomVitalField, updateCustomVitalField, deleteCustomVitalField,
+      vitalThresholds, isLoading,
     }}>
       {children}
     </DataContext.Provider>

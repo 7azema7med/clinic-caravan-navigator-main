@@ -131,10 +131,21 @@ export interface VitalRanges {
   };
 }
 
+export interface VitalThreshold {
+  id: string;
+  metric: 'blood_pressure_systolic' | 'blood_pressure_diastolic' | 'blood_sugar' | 'pulse';
+  level: string;
+  min_value: number | null;
+  max_value: number | null;
+  color: string;
+  label_ar: string;
+}
+
 export interface SystemSettings {
   registrationOpen: boolean;
   rotationTimeMinutes: number;
   vitalRanges: VitalRanges;
+  vitalThresholds: VitalThreshold[];
   researchQuestions: ResearchQuestion[];
   registrationFields: RegistrationField[];
   customVitalFields: CustomVitalField[];

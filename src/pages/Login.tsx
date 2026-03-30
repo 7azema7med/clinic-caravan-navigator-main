@@ -17,20 +17,15 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(identifier, password)) {
+    const success = await login(identifier, password);
+    if (success) {
       toast({ title: 'Welcome!', description: 'Login successful' });
-      // Check if user has assignment set
-      const savedUsers = JSON.parse(localStorage.getItem('clinic_users') || '[]');
-      const user = savedUsers.find((u: User) =>
-        (u.username === identifier || u.email === identifier || u.studentCode === identifier) && u.password === password
-      );
-      if (user && !user.assignment && user.role !== 'admin') {
-        navigate('/position-select');
-      } else {
+      // Short delay to allow context state to settle before navigation
+      setTimeout(() => {
         navigate('/dashboard');
-      }
+      }, 100);
     } else {
       toast({ title: 'Error', description: 'Invalid credentials', variant: 'destructive' });
     }

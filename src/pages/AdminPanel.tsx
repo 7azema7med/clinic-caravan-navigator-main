@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Shield, Users, Building2, Settings, Download, Plus, Edit, Trash2, GripVertical, FileSpreadsheet, ScrollText, FileText, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Clinic, StudentAssignment, ASSIGNMENT_LABELS, ResearchQuestion } from '@/lib/types';
+import { Clinic, StudentAssignment, ASSIGNMENT_LABELS, ResearchQuestion, VitalThreshold } from '@/lib/types';
 import { generateGlobalReportPDF, generateClinicReportPDF } from '@/lib/pdf';
 import { exportPatientsCSV, exportClinicCSV, exportSummaryCSV } from '@/lib/excel';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Cell } from 'recharts';
@@ -19,7 +19,7 @@ import PageLayout from '@/components/PageLayout';
 
 const AdminPanel: React.FC = () => {
   const { currentUser, users, updateUser, deleteUser, setAssignment } = useAuth();
-  const { clinics, addClinic, updateClinic, deleteClinic, settings, updateSettings, patients, getClinicStats, addResearchQuestion, updateResearchQuestion, deleteResearchQuestion, reorderResearchQuestions } = useData();
+  const { clinics, addClinic, updateClinic, deleteClinic, settings, updateSettings, patients, getClinicStats, addResearchQuestion, updateResearchQuestion, deleteResearchQuestion, reorderResearchQuestions, vitalThresholds, updateVitalThreshold } = useData();
   const { toast } = useToast();
   
   const [newClinic, setNewClinic] = useState({ name: '', nameAr: '', doctorName: '' });
@@ -368,40 +368,96 @@ const AdminPanel: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="settings">
-          <Card className="glass-card max-w-2xl mx-auto">
-            <CardHeader><CardTitle className="font-heading">System Settings</CardTitle></CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-                <div>
-                  <h4 className="font-semibold text-foreground">Patient Registration</h4>
-                  <p className="text-sm text-muted-foreground">Allow new patients to be registered at the reception</p>
-                </div>
-                <Switch 
-                  checked={settings.registrationOpen} 
-                  onCheckedChange={v => updateSettings({ registrationOpen: v })} 
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label>Rotation Timer (Minutes per station)</Label>
-                <div className="flex items-center gap-4">
-                  <Input 
-                    type="number" 
-                    value={settings.rotationTimeMinutes} 
-                    onChange={e => updateSettings({ rotationTimeMinutes: parseInt(e.target.value) || 30 })} 
-                    className="w-32" 
-                    min={1} 
+          <div className="space-y-6 max-w-4xl mx-auto">
+            <Card className="glass-card">
+              <CardHeader><CardTitle className="font-heading">System Status & Controls</CardTitle></CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                  <div>
+                    <h4 className="font-semibold text-foreground">Patient Registration</h4>
+                    <p className="text-sm text-muted-foreground">Allow new patients to be registered at the reception</p>
+                  </div>
+                  <Switch 
+                    checked={settings.registrationOpen} 
+                    onCheckedChange={v => updateSettings({ registrationOpen: v })} 
                   />
-                  <span className="text-sm text-muted-foreground">minutes</span>
                 </div>
-                <p className="text-xs text-muted-foreground">Changes to this timer will take effect for users on their next login or position switch.</p>
-              </div>
 
-              <Button onClick={() => toast({ title: 'Saved', description: 'Settings applied successfully' })} className="w-full">
-                <Save className="w-4 h-4 mr-2" /> Save Settings
-              </Button>
-            </CardContent>
-          </Card>
+                <div className="space-y-3">
+                  <Label>Rotation Timer (Minutes per station)</Label>
+                  <div className="flex items-center gap-4">
+                    <Input 
+                      type="number" 
+                      value={settings.rotationTimeMinutes} 
+                      onChange={e => updateSettings({ rotationTimeMinutes: parseInt(e.target.value) || 30 })} 
+                      className="w-32" 
+                      min={1} 
+                    />
+                    <span className="text-sm text-muted-foreground">minutes</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Changes to this timer will take effect for users on their next login or position switch.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="font-heading">Vital Signs Data Ranges</CardTitle>
+                <CardDescription>Configure the normal and threshold values for vital metrics (Arabic labels will be used in reports)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-8">
+                  {['blood_pressure_systolic', 'blood_pressure_diastolic', 'blood_sugar', 'pulse'].map(metric => {
+                    const metricThresholds = vitalThresholds.filter(t => t.metric === metric);
+                    const label = metric.replace(/_/g, ' ').toUpperCase();
+                    
+                    return (
+                      <div key={metric} className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">{label}</Badge>
+                          <div className="h-px flex-1 bg-border/50"></div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {metricThresholds.map(t => (
+                            <div key={t.id} className="p-3 border rounded-lg bg-card/50 hover:bg-card transition-colors space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Badge style={{ backgroundColor: t.color }} className="text-white border-none">{t.level.toUpperCase()}</Badge>
+                                <span className="text-[10px] text-muted-foreground" dir="rtl">{t.label_ar}</span>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px]">Min</Label>
+                                  <Input 
+                                    className="h-8 text-xs px-2"
+                                    type="number" 
+                                    placeholder="None"
+                                    value={t.min_value === null ? '' : t.min_value} 
+                                    onChange={e => updateVitalThreshold(t.id, { min_value: e.target.value === '' ? null : parseInt(e.target.value) })}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px]">Max</Label>
+                                  <Input 
+                                    className="h-8 text-xs px-2"
+                                    type="number" 
+                                    placeholder="None"
+                                    value={t.max_value === null ? '' : t.max_value} 
+                                    onChange={e => updateVitalThreshold(t.id, { max_value: e.target.value === '' ? null : parseInt(e.target.value) })}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
         
       </Tabs>
