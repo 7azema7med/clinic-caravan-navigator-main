@@ -1,5 +1,6 @@
 export type UserRole = 'student' | 'admin';
-export type StudentAssignment = 'registration' | 'vitals' | 'clinic' | 'research';
+/** Values stored in DB: registration | vitals | vital_signs | clinic | clinic_report | research | unassigned */
+export type StudentAssignment = 'registration' | 'vitals' | 'vital_signs' | 'clinic' | 'clinic_report' | 'research';
 export type PatientStatus = 'waiting' | 'examined' | 'absent';
 
 export interface SwitchRequest {

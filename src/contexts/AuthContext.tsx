@@ -178,6 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: {
           'Content-Type': 'application/json',
           'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
         },
         body: JSON.stringify({
           email: userData.email,
