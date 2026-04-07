@@ -166,45 +166,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser]);
 
   // ── Register ──
-  // Uses an Edge Function with the service role key so email confirmation
-  // is bypassed entirely — accounts are active immediately.
+  // Uses supabase.auth.signUp() directly — reliable in all environments.
+  // A DB trigger (handle_new_user) auto-creates the profile row on signup.
+  // Email confirmation is disabled in Supabase Auth settings so accounts
+  // are active immediately.
   const register = useCallback(async (userData: Omit<User, 'id' | 'role'> & { password?: string }): Promise<boolean> => {
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+      const email = userData.email.trim().toLowerCase();
+      const username = userData.username.trim().toLowerCase();
 
-      const res = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': anonKey,
-          'Authorization': `Bearer ${anonKey}`,
+      // Step 1: Create auth user via Supabase client (no edge function needed)
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: userData.password ?? 'TemporaryPassword123!',
+        options: {
+          data: {
+            username,
+            full_name: userData.fullName.trim(),
+            student_code: userData.studentCode?.trim() || null,
+          },
+          // Do not require email confirmation for internal system
+          emailRedirectTo: undefined,
         },
-        body: JSON.stringify({
-          email: userData.email,
-          password: userData.password ?? 'TemporaryPassword123!',
-          username: userData.username,
-          fullName: userData.fullName,
-          studentCode: userData.studentCode ?? null,
-        }),
       });
 
-      const result = await res.json() as { success?: boolean; error?: string; userId?: string };
-
-      if (!res.ok || result.error) {
-        const msg = result.error ?? 'Registration failed';
-        toast.error(msg.includes('already registered') || msg.includes('already exists')
-          ? 'An account with this email already exists.'
-          : 'Registration failed: ' + msg
-        );
+      if (error) {
+        if (error.message.toLowerCase().includes('already registered') ||
+            error.message.toLowerCase().includes('user already exists') ||
+            error.status === 422) {
+          toast.error('An account with this email already exists. Please sign in instead.');
+        } else {
+          toast.error('Registration failed: ' + error.message);
+        }
         return false;
+      }
+
+      const userId = data.user?.id;
+      if (!userId) {
+        // Supabase returned success but no user — email confirmation pending
+        // This means email confirmation is still ON in dashboard settings
+        toast.info('Account created! Check your email for a confirmation link, then sign in.');
+        return true;
+      }
+
+      // Step 2: Upsert profile (trigger should handle this, but we do it explicitly
+      // as a safety net in case the trigger doesn't fire)
+      const { error: profileError } = await supabase.from('profiles').upsert({
+        id: userId,
+        username,
+        full_name: userData.fullName.trim(),
+        email,
+        student_code: userData.studentCode?.trim() || null,
+        role: 'student',
+        current_assignment: 'unassigned',
+        is_active: false,
+      }, { onConflict: 'id' });
+
+      if (profileError && !profileError.message.includes('duplicate')) {
+        console.warn('Profile upsert warning:', profileError.message);
+        // Non-fatal — trigger may have already created it
       }
 
       return true;
     } catch (err) {
-      console.error('Register error:', err);
-      // "Failed to fetch" usually means no internet or a CORS issue
-      toast.error('Could not connect to the server. Check your internet connection and try again.');
+      console.error('Register network error:', err);
+      toast.error('Registration failed. Please check your internet connection and try again.');
       return false;
     }
   }, []);
