@@ -166,37 +166,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser]);
 
   // ── Register ──
+  // Uses an Edge Function with the service role key so email confirmation
+  // is bypassed entirely — accounts are active immediately.
   const register = useCallback(async (userData: Omit<User, 'id' | 'role'> & { password?: string }): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password ?? 'TemporaryPassword123!',
-        options: {
-          data: { full_name: userData.fullName, username: userData.username },
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': anonKey,
         },
+        body: JSON.stringify({
+          email: userData.email,
+          password: userData.password ?? 'TemporaryPassword123!',
+          username: userData.username,
+          fullName: userData.fullName,
+          studentCode: userData.studentCode ?? null,
+        }),
       });
 
-      if (error) { toast.error('Registration failed: ' + error.message); return false; }
+      const result = await res.json() as { success?: boolean; error?: string; userId?: string };
 
-      if (data.user) {
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          username: userData.username,
-          full_name: userData.fullName,
-          email: userData.email,
-          student_code: userData.studentCode,
-          role: 'student',
-          current_assignment: 'unassigned',
-        });
-        if (profileError && profileError.code !== '23505') {
-          console.error('Profile creation error:', profileError);
-        }
-        return true;
+      if (!res.ok || result.error) {
+        const msg = result.error ?? 'Registration failed';
+        toast.error(msg.includes('already registered') || msg.includes('already exists')
+          ? 'An account with this email already exists.'
+          : 'Registration failed: ' + msg
+        );
+        return false;
       }
-      return false;
+
+      return true;
     } catch (err) {
       console.error('Register error:', err);
-      toast.error('Registration failed. Please try again.');
+      // "Failed to fetch" usually means no internet or a CORS issue
+      toast.error('Could not connect to the server. Check your internet connection and try again.');
       return false;
     }
   }, []);
