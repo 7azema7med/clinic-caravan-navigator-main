@@ -21,12 +21,14 @@ export interface User {
   username: string;
   email: string;
   studentCode?: string;
-  password: string;
+  /** @deprecated Do not store passwords on the frontend */
+  password?: string;
   fullName: string;
   role: UserRole;
   assignment?: StudentAssignment;
   assignedClinic?: string;
   loginTime?: string;
+  /** ISO timestamp when current rotation started */
   rotationStartTime?: string;
   isActive?: boolean;
 }
@@ -149,6 +151,10 @@ export interface SystemSettings {
   researchQuestions: ResearchQuestion[];
   registrationFields: RegistrationField[];
   customVitalFields: CustomVitalField[];
+  /** Base64 or URL of the organisation logo */
+  logoUrl?: string | null;
+  /** Organisation / caravan name shown on reports */
+  organizationName?: string;
 }
 
 export interface ResearchQuestion {
@@ -272,20 +278,10 @@ export const DEFAULT_CLINICS: Clinic[] = [
   { id: '8', name: 'General Surgery', nameAr: 'جراحة عامة', doctorName: '', isActive: true },
 ];
 
-export const ADMIN_USER: User = {
-  id: 'admin-hazem',
-  username: 'Hazrm',
-  email: 'hazem@admin.com',
-  studentCode: '23018123',
-  password: '1232004',
-  fullName: 'Hazem Ahmed',
-  role: 'admin',
-  isActive: true,
-};
-
 export const ASSIGNMENT_LABELS: Record<string, string> = {
   registration: 'Patient Registration',
   vitals: 'Vital Signs',
   clinic: 'Clinic Report',
   research: 'Research Questionnaire',
+  unassigned: 'Unassigned',
 };

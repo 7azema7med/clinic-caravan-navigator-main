@@ -18,13 +18,15 @@ const PageLayout: React.FC<{ title: string; children: React.ReactNode }> = ({ ti
     if (!currentUser?.rotationStartTime) return;
     const start = new Date(currentUser.rotationStartTime).getTime();
     const rotationMs = settings.rotationTimeMinutes * 60 * 1000;
-    const interval = setInterval(() => {
+    const update = () => {
       const remaining = rotationMs - (Date.now() - start);
       setRemainingMs(remaining);
       setIsSessionEnded(remaining <= 0);
-    }, 1000);
+    };
+    update();
+    const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [currentUser, settings.rotationTimeMinutes]);
+  }, [currentUser?.rotationStartTime, settings.rotationTimeMinutes]);
 
   const formatRemaining = () => {
     if (remainingMs <= 0) return 'Ended';
@@ -35,46 +37,81 @@ const PageLayout: React.FC<{ title: string; children: React.ReactNode }> = ({ ti
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Rotation Alert */}
+      {/* Rotation Alert Banner */}
       {isSessionEnded && !dismissed && (
         <div className="rotation-banner text-white px-4 py-2 text-center">
-          <div className="flex items-center justify-center gap-3">
-            <AlertTriangle className="w-4 h-4 animate-pulse" />
+          <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 flex-wrap">
+            <AlertTriangle className="w-4 h-4 animate-pulse flex-shrink-0" />
             <span className="font-semibold text-sm">Rotation time ended! Go to Dashboard to switch.</span>
-            <Button size="sm" variant="secondary" className="ml-2 h-6 text-xs" onClick={() => navigate('/dashboard')}>
+            <Button
+              size="sm" variant="secondary"
+              className="h-7 text-xs"
+              onClick={() => navigate('/dashboard')}
+            >
               Dashboard
             </Button>
-            <Button size="sm" variant="ghost" className="ml-1 h-6 text-xs text-white/70 hover:text-white" onClick={() => setDismissed(true)}>
+            <Button
+              size="sm" variant="ghost"
+              className="h-7 text-xs text-white/70 hover:text-white"
+              onClick={() => setDismissed(true)}
+            >
               Dismiss
             </Button>
           </div>
         </div>
       )}
 
-      <header className="app-header px-6 py-3 shadow-lg">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="text-[hsl(var(--header-fg))] hover:bg-white/10">
+      <header className="app-header px-4 sm:px-6 py-3 shadow-lg">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          {/* Left: back + logo + title */}
+          <div className="flex items-center gap-2 min-w-0">
+            <Button
+              variant="ghost" size="icon"
+              onClick={() => navigate('/dashboard')}
+              className="text-[hsl(var(--header-fg))] hover:bg-white/10 flex-shrink-0"
+              aria-label="Back to Dashboard"
+            >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <Activity className="w-6 h-6 app-header-accent" />
-            <h1 className="text-lg font-bold font-heading text-[hsl(var(--header-fg))]">{title}</h1>
+
+            {settings.logoUrl ? (
+              <img
+                src={settings.logoUrl}
+                alt="Logo"
+                className="w-7 h-7 object-contain rounded flex-shrink-0"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <Activity className="w-5 h-5 app-header-accent flex-shrink-0" />
+            )}
+
+            <h1 className="text-base sm:text-lg font-bold font-heading text-[hsl(var(--header-fg))] truncate">
+              {title}
+            </h1>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Right: timer + theme + user */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             {currentUser?.rotationStartTime && (
-              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono ${isSessionEnded ? 'bg-red-500/20 text-red-300' : 'bg-white/10 text-[hsl(var(--header-muted))]'}`}>
+              <div className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-mono ${
+                isSessionEnded ? 'bg-red-500/20 text-red-300' : 'bg-white/10 text-[hsl(var(--header-muted))]'
+              }`}>
                 <Timer className="w-3 h-3" />
                 <span>{formatRemaining()}</span>
               </div>
             )}
             <ThemeToggle variant="header" />
-            <span className="text-sm text-[hsl(var(--header-muted))]">{currentUser?.fullName}</span>
+            <span className="hidden sm:block text-xs text-[hsl(var(--header-muted))] max-w-[120px] truncate">
+              {currentUser?.fullName}
+            </span>
           </div>
         </div>
       </header>
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-6 animate-fade-in">
+
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 animate-fade-in">
         {children}
       </main>
+
       <div className="footer-credit">
         This system was programmed and developed by Hazem Ahmed © 2026
       </div>
