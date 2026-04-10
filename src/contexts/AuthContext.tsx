@@ -47,15 +47,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string): Promise<User | null> => {
+    console.log(`[PRODUCTION_AUTH] Step B: Fetching user profile from profiles table for ID: ${userId}`);
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-      if (error || !data) return null;
+      
+      if (error) {
+        console.error('[PRODUCTION_AUTH] Step B Failed: Error fetching profile:', error.message);
+        return null;
+      }
+      
+      if (!data) {
+        console.error('[PRODUCTION_AUTH] Step B Failed: No profile data returned. Possible RLS issue.');
+        return null;
+      }
+      
       return mapRow(data as Record<string, unknown>);
-    } catch {
+    } catch (err: any) {
+      console.error('[PRODUCTION_AUTH] Step B Exception:', err?.message || err);
       return null;
     }
   }, []);
@@ -72,29 +84,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Session Bootstrap ──
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setCurrentUser(profile);
-        setSessionStart(profile?.loginTime ?? null);
+    let mounted = true;
+
+    const initializeSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('[PRODUCTION_AUTH] Initial getSession error:', error.message);
+          return;
+        }
+
+        if (session?.user) {
+          console.log('[PRODUCTION_AUTH] Found existing session on load. Fetching profile.');
+          const profile = await fetchProfile(session.user.id);
+          if (profile) {
+            if (mounted) {
+              setCurrentUser(profile);
+              setSessionStart(profile.loginTime ?? null);
+            }
+          } else {
+            console.error('[PRODUCTION_AUTH] Session found but profile missing/blocked by RLS. Triggering secure logout.');
+            await supabase.auth.signOut();
+            if (mounted) setCurrentUser(null);
+          }
+        }
+      } catch (err) {
+        console.error('[PRODUCTION_AUTH] Session bootstrap exception:', err);
+      } finally {
+        if (mounted) setIsLoading(false);
       }
-      setIsLoading(false);
-    });
+    };
+
+    initializeSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`[PRODUCTION_AUTH] Listener triggered -> Event: ${event}`);
       if (event === 'SIGNED_IN' && session?.user) {
         const profile = await fetchProfile(session.user.id);
-        setCurrentUser(profile);
-        setSessionStart(profile?.loginTime ?? null);
-        setIsLoading(false);
+        if (profile) {
+          if (mounted) {
+            setCurrentUser(profile);
+            setSessionStart(profile.loginTime ?? null);
+            setIsLoading(false);
+          }
+        } else {
+          console.error('[PRODUCTION_AUTH] SIGNED_IN event triggered, but profile sync failed. Ensuring user is logged out.');
+          await supabase.auth.signOut();
+          if (mounted) {
+            setCurrentUser(null);
+            setIsLoading(false);
+          }
+        }
       } else if (event === 'SIGNED_OUT') {
-        setCurrentUser(null);
-        setSessionStart(null);
-        setIsLoading(false);
+        if (mounted) {
+          setCurrentUser(null);
+          setSessionStart(null);
+          setIsLoading(false);
+        }
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   useEffect(() => {
@@ -107,7 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       let email = identifier.trim();
 
-      console.log('[PRODUCTION_AUTH] Starting login process for identifier:', email);
+      console.log('[PRODUCTION_AUTH] Initiating Login sequence...');
 
       if (!email.includes('@')) {
         // Lookup by username OR student code
@@ -118,10 +172,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .maybeSingle();
 
         if (lookupError) {
-          console.error('[PRODUCTION_AUTH] Profile lookup error:', lookupError.message);
+          console.error('[PRODUCTION_AUTH] Pre-login Profile lookup error:', lookupError.message);
           if (lookupError.message.includes('Failed to fetch') || lookupError.message.includes('FetchError')) {
             toast.error('Network Error: Could not connect to the database. Please check your internet connection.');
-            setIsLoading(false);
             return false;
           }
         }
@@ -133,13 +186,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      console.log('[PRODUCTION_AUTH] Attempting signInWithPassword for email:', email);
+      console.log('[PRODUCTION_AUTH] Step A: Attempting Supabase Auth signInWithPassword.');
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        console.error('[PRODUCTION_AUTH] Supabase auth error:', error.message);
+        console.error('[PRODUCTION_AUTH] Step A Failed (Supabase Auth Error):', error.message);
         if (error.message.includes('Failed to fetch')) {
-          toast.error('Network Error: Unable to reach the server. Please check your connection or CORS settings.');
+          toast.error('Network timeout: Unable to reach the server. Please check your connection or CORS settings.');
         } else if (error.message.includes('Invalid login credentials')) {
           toast.error('Invalid credentials: The username or password you entered is incorrect.');
         } else {
@@ -149,6 +202,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data.user) {
+        console.log('[PRODUCTION_AUTH] Step A Success. Auth established.');
+
         const now = new Date().toISOString();
         const { error: updateError } = await supabase
           .from('profiles')
@@ -160,20 +215,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         const profile = await fetchProfile(data.user.id);
+        
+        // Defensive profile checking (RLS or incomplete setup)
+        if (!profile) {
+          console.error('[PRODUCTION_AUTH] Step B Failed. Profile data missing. Enacting defensive logout.');
+          await supabase.auth.signOut();
+          toast.error('Profile data missing: Your account may be improperly configured or blocked by security policies. Please contact an administrator.');
+          return false;
+        }
+
+        console.log('[PRODUCTION_AUTH] Step B Success. Profile fetched safely.');
         setCurrentUser(profile);
         setSessionStart(now);
         return true;
       }
       return false;
     } catch (err: any) {
-      console.error('[PRODUCTION_AUTH] Unexpected exception during login:', err?.message || err);
+      console.error('[PRODUCTION_AUTH] Unexpected exception during login sequence:', err?.message || err);
       if (err?.message && err.message.includes('Failed to fetch')) {
         toast.error('Network connection failed. Please ensure you are connected to the internet.');
       } else {
-        toast.error('An unexpected error occurred during login.');
+        toast.error('An unexpected system error occurred during login. Please try again.');
       }
       return false;
     } finally {
+      // Guaranteed State Resolution
       setIsLoading(false);
     }
   }, [fetchProfile]);

@@ -36,16 +36,31 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (isSubmitting) return;
+    
     setIsSubmitting(true);
     try {
+      console.log('[LOGIN UI] Submitting credentials...');
       const ok = await login(identifier.trim(), password);
+      
       if (ok) {
         toast({ title: '✓ Welcome back!', description: 'Signed in successfully.' });
       } else {
+        console.warn('[LOGIN UI] Login returned false. Staying on page.');
         identifierRef.current?.focus();
+        setPassword(''); // Add security: clear password on failure
       }
+    } catch (err) {
+      console.error('[LOGIN UI] Fatal unhandled exception in handleSubmit:', err);
+      toast({ 
+        variant: 'destructive', 
+        title: 'Application Error', 
+        description: 'A critical error occurred while attempting to log in.' 
+      });
     } finally {
+      // Guaranteed UI State Resolution
+      console.log('[LOGIN UI] Resolving loading state (finally block).');
       setIsSubmitting(false);
     }
   };
