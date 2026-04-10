@@ -4,6 +4,15 @@ import { User, StudentAssignment } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs = 8000): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error('Network timeout. Please check your connection.')), timeoutMs)
+    )
+  ]);
+};
+
 interface AuthContextType {
   currentUser: User | null;
   users: User[];
@@ -49,11 +58,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = useCallback(async (userId: string): Promise<User | null> => {
     console.log(`[PRODUCTION_AUTH] Step B: Fetching user profile from profiles table for ID: ${userId}`);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const { data, error } = await withTimeout(
+        supabase.from('profiles').select('*').eq('id', userId).single()
+      );
       
       if (error) {
         console.error('[PRODUCTION_AUTH] Step B Failed: Error fetching profile:', error.message);
@@ -88,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await withTimeout(supabase.auth.getSession());
         
         if (error) {
           console.error('[PRODUCTION_AUTH] Initial getSession error:', error.message);
@@ -187,7 +194,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       console.log('[PRODUCTION_AUTH] Step A: Attempting Supabase Auth signInWithPassword.');
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password })
+      );
 
       if (error) {
         console.error('[PRODUCTION_AUTH] Step A Failed (Supabase Auth Error):', error.message);
@@ -232,8 +241,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     } catch (err: any) {
       console.error('[PRODUCTION_AUTH] Unexpected exception during login sequence:', err?.message || err);
-      if (err?.message && err.message.includes('Failed to fetch')) {
-        toast.error('Network connection failed. Please ensure you are connected to the internet.');
+      if (err?.message && (err.message.includes('Failed to fetch') || err.message.includes('timeout'))) {
+        toast.error('Network timeout. Please check your connection.');
       } else {
         toast.error('An unexpected system error occurred during login. Please try again.');
       }
@@ -267,19 +276,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[PRODUCTION_AUTH] Attempting to register user:', email);
 
       // Step 1: Create auth user via Supabase client (no edge function needed)
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: userData.password ?? 'TemporaryPassword123!',
-        options: {
-          data: {
-            username,
-            full_name: userData.fullName.trim(),
-            student_code: userData.studentCode?.trim() || null,
+      const { data, error } = await withTimeout(
+        supabase.auth.signUp({
+          email,
+          password: userData.password ?? 'TemporaryPassword123!',
+          options: {
+            data: {
+              username,
+              full_name: userData.fullName.trim(),
+              student_code: userData.studentCode?.trim() || null,
+            },
+            // Do not require email confirmation for internal system
+            emailRedirectTo: undefined,
           },
-          // Do not require email confirmation for internal system
-          emailRedirectTo: undefined,
-        },
-      });
+        })
+      );
 
       if (error) {
         console.error('[PRODUCTION_AUTH] Supabase auth signUp error:', error.message);
@@ -326,8 +337,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (err: any) {
       console.error('[PRODUCTION_AUTH] Register network exception:', err?.message || err);
-      if (err?.message && err.message.includes('Failed to fetch')) {
-        toast.error('Network connection failed. Please ensure you are connected to the internet and try again.');
+      if (err?.message && (err.message.includes('Failed to fetch') || err.message.includes('timeout'))) {
+        toast.error('Network timeout. Please check your connection.');
       } else {
         toast.error('Registration failed due to an unexpected error. Please check your connection.');
       }

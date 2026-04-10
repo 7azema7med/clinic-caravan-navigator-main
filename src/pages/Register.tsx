@@ -37,6 +37,13 @@ const Register: React.FC = () => {
     e.preventDefault();
     if (isSubmitting) return;
 
+    const trimmedEmail = form.email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast({ title: 'Invalid Email', description: 'Please enter a valid email address.', variant: 'destructive' });
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       toast({ title: 'Passwords do not match', description: 'Please re-enter matching passwords.', variant: 'destructive' });
       return;
@@ -50,7 +57,7 @@ const Register: React.FC = () => {
     try {
       const success = await register({
         username: form.username.trim(),
-        email: form.email.trim(),
+        email: trimmedEmail,
         studentCode: form.studentCode.trim() || undefined,
         password: form.password,
         fullName: form.fullName.trim(),

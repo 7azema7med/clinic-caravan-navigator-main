@@ -38,11 +38,21 @@ const Login: React.FC = () => {
     e.preventDefault();
     
     if (isSubmitting) return;
+
+    const trimmedId = identifier.trim();
+    if (!trimmedId) {
+      toast({ title: 'Input Required', description: 'Please enter your username or email.', variant: 'destructive' });
+      return;
+    }
+    if (password.length < 6) {
+      toast({ title: 'Invalid Password', description: 'Password must be at least 6 characters.', variant: 'destructive' });
+      return;
+    }
     
     setIsSubmitting(true);
     try {
       console.log('[LOGIN UI] Submitting credentials...');
-      const ok = await login(identifier.trim(), password);
+      const ok = await login(trimmedId, password);
       
       if (ok) {
         toast({ title: '✓ Welcome back!', description: 'Signed in successfully.' });
