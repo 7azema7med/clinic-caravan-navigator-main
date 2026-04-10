@@ -5,7 +5,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undef
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error(
-    "[Supabase] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing.\n" +
+    "[PRODUCTION_ERROR] Supabase VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing.\n" +
     "• Local dev: make sure .env.local exists with both variables.\n" +
     "• Production (Vercel): add them in Project → Settings → Environment Variables, then redeploy."
   );

@@ -107,13 +107,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       let email = identifier.trim();
 
+      console.log('[PRODUCTION_AUTH] Starting login process for identifier:', email);
+
       if (!email.includes('@')) {
         // Lookup by username OR student code
-        const { data: profileData } = await supabase
+        const { data: profileData, error: lookupError } = await supabase
           .from('profiles')
           .select('email')
           .or(`username.eq.${email},student_code.eq.${email}`)
           .maybeSingle();
+
+        if (lookupError) {
+          console.error('[PRODUCTION_AUTH] Profile lookup error:', lookupError.message);
+          if (lookupError.message.includes('Failed to fetch') || lookupError.message.includes('FetchError')) {
+            toast.error('Network Error: Could not connect to the database. Please check your internet connection.');
+            setIsLoading(false);
+            return false;
+          }
+        }
 
         if (profileData?.email) {
           email = profileData.email as string;
@@ -122,19 +133,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      console.log('[PRODUCTION_AUTH] Attempting signInWithPassword for email:', email);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        toast.error('Login failed: ' + error.message);
+        console.error('[PRODUCTION_AUTH] Supabase auth error:', error.message);
+        if (error.message.includes('Failed to fetch')) {
+          toast.error('Network Error: Unable to reach the server. Please check your connection or CORS settings.');
+        } else if (error.message.includes('Invalid login credentials')) {
+          toast.error('Invalid credentials: The username or password you entered is incorrect.');
+        } else {
+          toast.error('Login failed: ' + error.message);
+        }
         return false;
       }
 
       if (data.user) {
         const now = new Date().toISOString();
-        await supabase
+        const { error: updateError } = await supabase
           .from('profiles')
           .update({ is_active: true, session_start: now, last_seen: now })
           .eq('id', data.user.id);
+
+        if (updateError) {
+          console.error('[PRODUCTION_AUTH] Failed to update profile active status:', updateError.message);
+        }
 
         const profile = await fetchProfile(data.user.id);
         setCurrentUser(profile);
@@ -142,9 +165,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       }
       return false;
-    } catch (err) {
-      console.error('Login error:', err);
-      toast.error('Login failed. Please check your connection.');
+    } catch (err: any) {
+      console.error('[PRODUCTION_AUTH] Unexpected exception during login:', err?.message || err);
+      if (err?.message && err.message.includes('Failed to fetch')) {
+        toast.error('Network connection failed. Please ensure you are connected to the internet.');
+      } else {
+        toast.error('An unexpected error occurred during login.');
+      }
       return false;
     } finally {
       setIsLoading(false);
@@ -166,14 +193,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser]);
 
   // ── Register ──
-  // Uses supabase.auth.signUp() directly — reliable in all environments.
-  // A DB trigger (handle_new_user) auto-creates the profile row on signup.
-  // Email confirmation is disabled in Supabase Auth settings so accounts
-  // are active immediately.
   const register = useCallback(async (userData: Omit<User, 'id' | 'role'> & { password?: string }): Promise<boolean> => {
     try {
       const email = userData.email.trim().toLowerCase();
       const username = userData.username.trim().toLowerCase();
+
+      console.log('[PRODUCTION_AUTH] Attempting to register user:', email);
 
       // Step 1: Create auth user via Supabase client (no edge function needed)
       const { data, error } = await supabase.auth.signUp({
@@ -191,9 +216,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        if (error.message.toLowerCase().includes('already registered') ||
-            error.message.toLowerCase().includes('user already exists') ||
-            error.status === 422) {
+        console.error('[PRODUCTION_AUTH] Supabase auth signUp error:', error.message);
+        if (error.message.includes('Failed to fetch')) {
+          toast.error('Network Error: Could not connect to the server. Check your connection or CORS settings.');
+        } else if (
+          error.message.toLowerCase().includes('already registered') ||
+          error.message.toLowerCase().includes('user already exists') ||
+          error.status === 422
+        ) {
           toast.error('An account with this email already exists. Please sign in instead.');
         } else {
           toast.error('Registration failed: ' + error.message);
@@ -203,8 +233,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const userId = data.user?.id;
       if (!userId) {
-        // Supabase returned success but no user — email confirmation pending
-        // This means email confirmation is still ON in dashboard settings
         toast.info('Account created! Check your email for a confirmation link, then sign in.');
         return true;
       }
@@ -223,14 +251,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, { onConflict: 'id' });
 
       if (profileError && !profileError.message.includes('duplicate')) {
-        console.warn('Profile upsert warning:', profileError.message);
-        // Non-fatal — trigger may have already created it
+        console.warn('[PRODUCTION_AUTH] Profile upsert warning:', profileError.message);
+      } else if (profileError?.message.includes('Failed to fetch')) {
+        // Highly uncommon since signup just worked, but possible
+        toast.error('Network Error generating profile. Your account was created but profile sync failed.');
       }
 
       return true;
-    } catch (err) {
-      console.error('Register network error:', err);
-      toast.error('Registration failed. Please check your internet connection and try again.');
+    } catch (err: any) {
+      console.error('[PRODUCTION_AUTH] Register network exception:', err?.message || err);
+      if (err?.message && err.message.includes('Failed to fetch')) {
+        toast.error('Network connection failed. Please ensure you are connected to the internet and try again.');
+      } else {
+        toast.error('Registration failed due to an unexpected error. Please check your connection.');
+      }
       return false;
     }
   }, []);
