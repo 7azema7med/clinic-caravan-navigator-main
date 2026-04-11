@@ -11,6 +11,7 @@ import { StudentAssignment, ASSIGNMENT_LABELS, User } from '@/lib/types';
 import { ClipboardList, HeartPulse, FileText, ScrollText, LogOut, Timer, Shield, Users, Activity, Bell, ArrowRightLeft, UserCog, AlertTriangle, ArrowRight, Moon, Sun, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ThemeToggle } from '@/components/ThemeProvider';
+import Header from '@/components/Header';
 
 const SECTION_CONFIG: Record<StudentAssignment, { icon: React.ElementType; color: string; route: string }> = {
   registration: { icon: ClipboardList, color: 'from-blue-600 to-cyan-500', route: '/registration' },
@@ -140,51 +141,16 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* ─ Header ─ */}
-      <header className="app-header px-6 py-4 shadow-lg">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Activity className="w-7 h-7 app-header-accent" />
-            <div>
-              <h1 className="text-xl font-bold font-heading text-[hsl(var(--header-fg))]">Medical Caravan System</h1>
-              <p className="text-xs text-[hsl(var(--header-muted))]">Welcome, {currentUser.fullName}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono ${isSessionEnded ? 'bg-red-500/20 text-red-300' : 'bg-white/10 text-[hsl(var(--header-muted))]'}`}>
-              <Timer className="w-3.5 h-3.5" />
-              <span>{elapsed}</span>
-              <span className="opacity-40">|</span>
-              <span className={isSessionEnded ? 'text-red-300 font-semibold' : ''}>{formatRemaining()}</span>
-            </div>
+      <Header
+        variant="dashboard"
+        elapsed={elapsed}
+        remainingText={formatRemaining()}
+        isSessionEnded={isSessionEnded}
+        onNotificationsClick={() => setNotifDialog(true)}
+        pendingRequestsCount={pendingRequests.length}
+      />
 
-            <Button variant="ghost" size="icon" className="relative text-[hsl(var(--header-fg))] hover:bg-white/10" onClick={() => setNotifDialog(true)}>
-              <Bell className="w-5 h-5" />
-              {pendingRequests.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white font-bold animate-pulse">
-                  {pendingRequests.length}
-                </span>
-              )}
-            </Button>
-
-            <ThemeToggle variant="header" />
-
-            <Button variant="ghost" size="icon" className="text-[hsl(var(--header-fg))] hover:bg-white/10" onClick={() => navigate('/profile')}>
-              <UserCog className="w-5 h-5" />
-            </Button>
-
-            {isAdmin && (
-              <Button variant="ghost" size="sm" onClick={() => navigate('/admin')} className="text-[hsl(var(--header-fg))] hover:bg-white/10 text-xs">
-                <Shield className="w-4 h-4 mr-1" /> Admin
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={() => { logout(); navigate('/'); }} className="text-[hsl(var(--header-fg))] hover:bg-white/10 text-xs">
-              <LogOut className="w-4 h-4 mr-1" /> Logout
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8 animate-fade-in">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 animate-fade-in">
         {/* ─ Stats ─ */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 stagger-children">
           <Card className="stat-card">

@@ -5,6 +5,7 @@ import { useData } from '@/contexts/DataContext';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Activity, Timer, AlertTriangle } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeProvider';
+import Header from '@/components/Header';
 
 const PageLayout: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
   const { currentUser } = useAuth();
@@ -61,52 +62,12 @@ const PageLayout: React.FC<{ title: string; children: React.ReactNode }> = ({ ti
         </div>
       )}
 
-      <header className="app-header px-4 sm:px-6 py-3 shadow-lg">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
-          {/* Left: back + logo + title */}
-          <div className="flex items-center gap-2 min-w-0">
-            <Button
-              variant="ghost" size="icon"
-              onClick={() => navigate('/dashboard')}
-              className="text-[hsl(var(--header-fg))] hover:bg-white/10 flex-shrink-0"
-              aria-label="Back to Dashboard"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-
-            {settings.logoUrl ? (
-              <img
-                src={settings.logoUrl}
-                alt="Logo"
-                className="w-7 h-7 object-contain rounded flex-shrink-0"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            ) : (
-              <Activity className="w-5 h-5 app-header-accent flex-shrink-0" />
-            )}
-
-            <h1 className="text-base sm:text-lg font-bold font-heading text-[hsl(var(--header-fg))] truncate">
-              {title}
-            </h1>
-          </div>
-
-          {/* Right: timer + theme + user */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {currentUser?.rotationStartTime && (
-              <div className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-mono ${
-                isSessionEnded ? 'bg-red-500/20 text-red-300' : 'bg-white/10 text-[hsl(var(--header-muted))]'
-              }`}>
-                <Timer className="w-3 h-3" />
-                <span>{formatRemaining()}</span>
-              </div>
-            )}
-            <ThemeToggle variant="header" />
-            <span className="hidden sm:block text-xs text-[hsl(var(--header-muted))] max-w-[120px] truncate">
-              {currentUser?.fullName}
-            </span>
-          </div>
-        </div>
-      </header>
+      <Header
+        variant="page"
+        title={title}
+        isSessionEnded={isSessionEnded}
+        remainingText={formatRemaining()}
+      />
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 animate-fade-in">
         {children}
